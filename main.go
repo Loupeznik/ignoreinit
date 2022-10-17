@@ -5,7 +5,7 @@ import (
 	"github.com/loupeznik/ignoreinit/src"
 )
 
-const version = "1.0.0"
+const version = "1.0.1"
 
 func main() {
 	flags := src.Flags{}

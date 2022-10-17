@@ -129,7 +129,7 @@ func getIgnore(language string, location string, isNew bool) error {
 	if isNew {
 		file, err = os.Create(fullPath)
 	} else {
-		file, err = os.OpenFile(fullPath, os.O_RDWR, 0660)
+		file, err = os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	}
 
 	if err != nil {
