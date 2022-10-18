@@ -29,14 +29,13 @@ func InitHandlers() {
 		}
 
 		if _, err := os.Stat(path.Join(location, ".gitignore")); errors.Is(err, nil) {
-			fmt.Printf(".gitignore already exists in %s", location)
-			return err
+			fmt.Printf(".gitignore already exists in %s\n", location)
+			return nil
 		}
 
 		err = getIgnore(language, location, true)
 
 		if err != nil {
-			fmt.Print(err.Error())
 			return err
 		}
 
@@ -53,14 +52,13 @@ func InitHandlers() {
 		}
 
 		if _, err := os.Stat(path.Join(location, ".gitignore")); errors.Is(err, os.ErrNotExist) {
-			fmt.Printf(".gitignore does not exist in %s", location)
-			return err
+			fmt.Printf(".gitignore does not exist in %s\n", location)
+			return nil
 		}
 
 		err = getIgnore(language, location, false)
 
 		if err != nil {
-			fmt.Print(err.Error())
 			return err
 		}
 
