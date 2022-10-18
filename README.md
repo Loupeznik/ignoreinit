@@ -41,4 +41,10 @@ cd ignoreinit
 go install github.com/loupeznik/ignoreinit
 ```
 
-Docker and package manager support is coming come later.
+Or simply install the latest version with Go without needing to clone the repo:
+
+```bash
+go install github.com/loupeznik/ignoreinit@latest
+```
+
+Docker and package manager support is coming later.
