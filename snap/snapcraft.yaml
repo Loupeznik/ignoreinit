@@ -1,0 +1,27 @@
+name: ignoreinit
+base: core20
+version: '1.0.2'
+summary: A tool for creating .gitignore files from the command line
+license: MIT
+source-code: 'https://github.com/Loupeznik/ignoreinit'
+description: |
+  Ignoreinit is a tool for creating .gitignore files from the command line.
+  Gitignore files are pulled from github/gitignore repo.
+
+grade: stable
+confinement: strict
+
+architectures:
+  - build-on: [arm64, amd64]
+
+apps:
+  ignoreinit:
+    command: bin/ignoreinit
+    plugs:
+      - home
+
+parts:
+  ignoreinit:
+    plugin: go
+    source-type: git
+    source: https://github.com/Loupeznik/ignoreinit 

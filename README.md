@@ -33,6 +33,16 @@ go build -o build/ignoreinit github.com/loupeznik/ignoreinit
 
 ## Install
 
+### Install via Snap
+
+*Ignoreinit* is available as a [snap](https://snapcraft.io/ignoreinit) for *amd64* and *arm64* based systems.
+
+```bash
+sudo snap install ignoreinit
+```
+
+### Install via git or go
+
 You may either install the executable directly into `$GOPATH` or download it from the [release page](https://github.com/Loupeznik/ignoreinit/releases).
 
 ```bash
@@ -47,4 +57,4 @@ Or simply install the latest version with Go without needing to clone the repo:
 go install github.com/loupeznik/ignoreinit@latest
 ```
 
-Docker and package manager support is coming later.
+Docker and general package manager support are coming at a later date.
