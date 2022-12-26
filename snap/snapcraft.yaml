@@ -1,9 +1,12 @@
 name: ignoreinit
 base: core20
-version: '1.0.2'
+version: '1.0.3'
 summary: A tool for creating .gitignore files from the command line
 license: MIT
-source-code: 'https://github.com/Loupeznik/ignoreinit'
+contact: contact@dzarsky.eu
+issues: https://github.com/Loupeznik/ignoreinit/issues
+website: https://github.com/Loupeznik/ignoreinit
+source-code: https://github.com/Loupeznik/ignoreinit
 description: |
   Ignoreinit is a tool for creating .gitignore files from the command line.
   Gitignore files are pulled from github/gitignore repo.
