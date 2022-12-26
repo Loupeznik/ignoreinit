@@ -31,6 +31,16 @@ cd ignoreinit
 go build -o build/ignoreinit github.com/loupeznik/ignoreinit
 ```
 
+## Run with Docker
+
+```bash
+# Create .gitignore in the current directory
+docker run --rm -v ${PWD}:/work loupeznik/ignoreinit:latest init go .
+
+# Create .gitignore in another directory directory
+docker run --rm -v /$HOME/projects:/work loupeznik/ignoreinit:latest init go .
+```
+
 ## Install
 
 ### Install via Snap
@@ -58,5 +68,3 @@ Or simply install the latest version with Go without needing to clone the repo:
 ```bash
 go install github.com/loupeznik/ignoreinit@latest
 ```
-
-Docker and general package manager support are coming at a later date.
