@@ -35,6 +35,8 @@ go build -o build/ignoreinit github.com/loupeznik/ignoreinit
 
 ### Install via Snap
 
+[![ignoreinit](https://snapcraft.io/ignoreinit/badge.svg)](https://snapcraft.io/ignoreinit)
+
 *Ignoreinit* is available as a [snap](https://snapcraft.io/ignoreinit) for *amd64* and *arm64* based systems.
 
 ```bash
