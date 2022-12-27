@@ -38,7 +38,7 @@ go build -o build/ignoreinit github.com/loupeznik/ignoreinit
 docker run --rm -v ${PWD}:/work loupeznik/ignoreinit:latest init go .
 
 # Create .gitignore in another directory directory
-docker run --rm -v /$HOME/projects:/work loupeznik/ignoreinit:latest init go .
+docker run --rm -v $HOME/projects:/work loupeznik/ignoreinit:latest init go .
 ```
 
 ## Install
@@ -53,7 +53,23 @@ docker run --rm -v /$HOME/projects:/work loupeznik/ignoreinit:latest init go .
 sudo snap install ignoreinit
 ```
 
-### Install via git or go
+### Install via apt
+
+On Debian-based distros, *ignoreinit* can be installed via *apt* using a custom *apt* repo. This option is currently supported for *amd64* systems.
+
+```bash
+sudo -s
+
+apt install -y curl gpg
+
+curl -fsSL https://apt.dzarsky.eu/apt-repo-dzarsky.gpg | gpg --dearmor > /etc/apt/trusted.gpg.d/apt-repo-dzarsky.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/apt-repo-dzarsky.gpg] https://apt.dzarsky.eu /" > /etc/apt/sources.list.d/apt-repo-dzarsky.list
+
+apt update
+apt install ignoreinit
+```
+
+### Install via go
 
 You may either install the executable directly into `$GOPATH` or download it from the [release page](https://github.com/Loupeznik/ignoreinit/releases).
 
