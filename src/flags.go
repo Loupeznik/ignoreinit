@@ -9,4 +9,7 @@ type Flags struct {
 	Replace struct {
 		Settings bool `settings:"true" allow-unknown-arg:"true"`
 	} `command:"replace" description:"Replace current .gitignore - use ignoreinit replace <language> <location>" nonempty:"true"`
+	Merge struct {
+		Settings bool `settings:"true" allow-unknown-arg:"true"`
+	} `command:"merge" description:"Merge a new gitignore into current .gitignore - use ignoreinit merge <language> <location>" nonempty:"true"`
 }

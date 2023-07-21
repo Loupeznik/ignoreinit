@@ -23,6 +23,14 @@ Replaces existing .gitignore based on given language in defined location (either
 ignoreinit replace <language> <location>
 ```
 
+### Merge existing gitignore
+
+Merges a gitignore for given language into existing .gitignore in defined location (either relative or absolute).
+
+```bash
+ignoreinit merge <language> <location>
+```
+
 ## Build from source
 
 ```bash

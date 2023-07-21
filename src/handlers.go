@@ -16,6 +16,7 @@ import (
 const (
 	fncInit    = "Init"
 	fncReplace = "Replace"
+	fncMerge   = "Merge"
 	gitOwner   = "github"
 	gitRepo    = "gitignore"
 )
@@ -33,7 +34,7 @@ func InitHandlers() {
 			return nil
 		}
 
-		err = getIgnore(language, location, true)
+		err = getIgnore(language, location, true, false)
 
 		if err != nil {
 			return err
@@ -56,13 +57,36 @@ func InitHandlers() {
 			return nil
 		}
 
-		err = getIgnore(language, location, false)
+		err = getIgnore(language, location, false, false)
 
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("Replaced .gitignore in %s\n", location)
+
+		return nil
+	})
+
+	gocmd.HandleFlag(fncMerge, func(cmd *gocmd.Cmd, args []string) error {
+		language, location, err := handleParams(cmd.FlagArgs(fncMerge)[1:])
+
+		if err != nil {
+			return err
+		}
+
+		if _, err := os.Stat(path.Join(location, ".gitignore")); errors.Is(err, os.ErrNotExist) {
+			fmt.Printf(".gitignore does not exist in %s\n", location)
+			return nil
+		}
+
+		err = getIgnore(language, location, false, true)
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Merged .gitignore in %s\n", location)
 
 		return nil
 	})
@@ -80,7 +104,7 @@ func handleParams(params []string) (string, string, error) {
 	return params[0], params[1], nil
 }
 
-func getIgnore(language string, location string, isNew bool) error {
+func getIgnore(language string, location string, isNew bool, isMerge bool) error {
 	client := github.NewClient(nil)
 	ctx := context.Background()
 	options := &github.RepositoryContentGetOptions{}
@@ -123,6 +147,24 @@ func getIgnore(language string, location string, isNew bool) error {
 
 	var file *os.File
 	fullPath := path.Join(location, ".gitignore")
+
+	if isMerge {
+		file, err = os.OpenFile(fullPath, os.O_RDWR|os.O_APPEND, 0755)
+
+		if err != nil {
+			return err
+		}
+
+		defer file.Close()
+
+		_, err = file.Write(bytes)
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 
 	if isNew {
 		file, err = os.Create(fullPath)
