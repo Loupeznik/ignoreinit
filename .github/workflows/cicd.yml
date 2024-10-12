@@ -58,6 +58,7 @@ jobs:
           dpkg-deb --build --root-owner-group $TMP_DIR
 
       - name: Publish artifact
+        if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
         uses: actions/upload-artifact@v4.4.3
         with:
           name: deb
@@ -92,8 +93,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            loupeznik/better-wapi:${{ github.ref_name }}
-            loupeznik/better-wapi:latest
+            loupeznik/ignoreinit:${{ github.ref_name }}
+            loupeznik/ignoreinit:latest
 
 #  apt:
 #    name: APT release
