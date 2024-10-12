@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GO111MODULE: on
+      APP_NAME: 'ignoreinit'
+      DEFAULT_BUILD_ARCH: 'amd64'
 
     steps:
       - uses: actions/checkout@v4.2.1
@@ -32,32 +34,47 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
+      - name: Create deb
+        run: |
+          REF=${{ github.ref_name }}
+          APP_VERSION=${REF//v/}
+          APP_ID=${{ env.APP_NAME }}_${APP_VERSION}_${{ env.DEFAULT_BUILD_ARCH }}
+          TMP_DIR=/tmp/$APP_ID
+          APP_DIR=$TMP_DIR/usr/local/bin
+          mkdir -p $APP_DIR
+          cp output/${{ env.APP_NAME }} $APP_DIR
+          mkdir $TMP_DIR/DEBIAN
+          
+          cat <<EOF > $TMP_DIR/DEBIAN/control
+          Package: ${{ env.APP_NAME }}
+          Version: $APP_VERSION
+          Architecture: ${{ env.DEFAULT_BUILD_ARCH }}
+          Maintainer: Dominik Zarsky <dzarsky@dzarsky.eu>
+          Description: A tool for creating .gitignore files from the command line.
+          EOF
+  
+          chmod +x $APP_DIR/${{ env.APP_NAME }}
+          dpkg-deb --build --root-owner-group $TMP_DIR
+
+      - name: Publish artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: deb
+          path: /tmp/*.deb
+
       - uses: actions/upload-artifact@v4.4.3
         with:
           name: artifact
           path: ./bin/*
 
-  release:
-    name: Release
+  docker:
+    name: Docker
     needs: build
     if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.1
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: artifact
-          path: output
-
-      - name: Create a release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            output/**/*
-          generate_release_notes: true
-          name: "${{ github.ref_name }}"
-
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -76,3 +93,55 @@ jobs:
           tags: |
             loupeznik/better-wapi:${{ github.ref_name }}
             loupeznik/better-wapi:latest
+
+#  apt:
+#    name: APT release
+#    needs: build
+#    if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
+#    runs-on: oc-ubuntu-4
+#    steps:
+#      - uses: actions/download-artifact@v4
+#        with:
+#          name: deb
+#          path: output
+#
+#      - name: Publish package
+#        run: |
+#            GPG_TTY=$(tty)
+#            export GPG_TTY
+#
+#            cd /opt/repo/apt
+#            cp /tmp/dist/*.deb amd64
+#
+#            dpkg-scanpackages --arch amd64 --multiversion . > Packages
+#            gzip -k -f Packages
+#
+#            apt-ftparchive release . > Release
+#
+#            echo ${{ secrets.GPG_KEY_PASSPHRASE }} > /tmp/gpg_secret
+#            chmod 600 /tmp/gpg_secret
+#            gpg --pinentry-mode loopback --passphrase-file "/tmp/gpg_secret" --yes -abs -u ${{ SECRETS.GPG_KEY_ID }} -o Release.gpg Release
+#            rm /tmp/gpg_secret
+#            rm -rf /tmp/dist
+  
+  release:
+    name: Release
+    needs:
+      - build
+      #- apt
+      - docker
+    if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact
+          path: output
+
+      - name: Create a release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            output/**/*
+          generate_release_notes: true
+          name: "${{ github.ref_name }}"
