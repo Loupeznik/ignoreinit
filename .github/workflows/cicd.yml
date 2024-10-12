@@ -42,7 +42,7 @@ jobs:
           TMP_DIR=/tmp/$APP_ID
           APP_DIR=$TMP_DIR/usr/local/bin
           mkdir -p $APP_DIR
-          cp output/${{ env.APP_NAME }} $APP_DIR
+          cp ./bin/${{ env.APP_NAME }}-${{ env.DEFAULT_BUILD_ARCH }}-linux $APP_DIR/${{ env.APP_NAME }}
           mkdir $TMP_DIR/DEBIAN
           
           cat <<EOF > $TMP_DIR/DEBIAN/control
