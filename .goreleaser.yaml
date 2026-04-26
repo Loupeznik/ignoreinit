@@ -106,15 +106,10 @@ snapcrafts:
     confinement: strict
     license: MIT
     publish: true
-    plugs:
-      dot-gitignore:
-        interface: personal-files
-        write:
-          - $HOME/.gitignore
     apps:
       ignoreinit:
         command: ignoreinit
-        plugs: [home, network, dot-gitignore]
+        plugs: [home, network]
 
 aurs:
   - name: ignoreinit-bin
