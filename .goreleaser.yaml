@@ -4,7 +4,7 @@ project_name: ignoreinit
 
 before:
   hooks:
-    - go mod tidy
+    - sh -c 'go mod tidy && git diff --exit-code -- go.mod go.sum'
 
 builds:
   - id: ignoreinit
@@ -106,10 +106,15 @@ snapcrafts:
     confinement: strict
     license: MIT
     publish: true
+    plugs:
+      dot-gitignore:
+        interface: personal-files
+        write:
+          - $HOME/.gitignore
     apps:
       ignoreinit:
         command: ignoreinit
-        plugs: [home, network]
+        plugs: [home, network, dot-gitignore]
 
 aurs:
   - name: ignoreinit-bin
