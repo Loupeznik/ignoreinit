@@ -28,7 +28,14 @@ ignoreinit search <term>
 Creates new .gitignore based on given language in defined location (either relative or absolute).
 
 ```bash
-ignoreinit init <language> <location>
+ignoreinit init <template...> <location>
+```
+
+If location is omitted, ignoreinit writes to the current directory. Pass multiple templates to combine them:
+
+```bash
+ignoreinit init go node terraform
+ignoreinit init go node terraform ./my-project
 ```
 
 ### Replace existing gitignore
@@ -36,7 +43,7 @@ ignoreinit init <language> <location>
 Replaces existing .gitignore based on given language in defined location (either relative or absolute).
 
 ```bash
-ignoreinit replace <language> <location>
+ignoreinit replace <template...> <location>
 ```
 
 ### Merge existing gitignore
@@ -44,7 +51,7 @@ ignoreinit replace <language> <location>
 Merges a gitignore for given language into existing .gitignore in defined location (either relative or absolute).
 
 ```bash
-ignoreinit merge <language> <location>
+ignoreinit merge <template...> <location>
 ```
 
 ## Build from source

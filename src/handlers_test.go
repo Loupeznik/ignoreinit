@@ -11,13 +11,14 @@ import (
 )
 
 type fakeGitignoreClient struct {
-	listTemplates   []string
-	listErrs        []error
-	downloadContent []byte
-	downloadErrs    []error
-	listCalls       int
-	downloadCalls   int
-	downloadedPath  string
+	listTemplates    []string
+	listErrs         []error
+	downloadContent  []byte
+	downloadContents [][]byte
+	downloadErrs     []error
+	listCalls        int
+	downloadCalls    int
+	downloadedPath   string
 }
 
 func TestHandleParamsDefaultsLocation(t *testing.T) {
@@ -35,6 +36,36 @@ func TestHandleParamsRequiresLanguage(t *testing.T) {
 	_, _, err := handleParams(nil)
 	if err == nil {
 		t.Fatal("handleParams() error = nil; want an error")
+	}
+}
+
+func TestHandleGenerationParamsDefaultsLocationForMultipleTemplates(t *testing.T) {
+	templates, location, err := handleGenerationParams([]string{"go", "node", "terraform"})
+	if err != nil {
+		t.Fatalf("handleGenerationParams() returned error: %v", err)
+	}
+
+	if got := strings.Join(templates, ", "); got != "go, node, terraform" {
+		t.Fatalf("templates = %q; want go, node, terraform", got)
+	}
+
+	if location != "." {
+		t.Fatalf("location = %q; want .", location)
+	}
+}
+
+func TestHandleGenerationParamsUsesExplicitLocation(t *testing.T) {
+	templates, location, err := handleGenerationParams([]string{"go", "node", "./project"})
+	if err != nil {
+		t.Fatalf("handleGenerationParams() returned error: %v", err)
+	}
+
+	if got := strings.Join(templates, ", "); got != "go, node" {
+		t.Fatalf("templates = %q; want go, node", got)
+	}
+
+	if location != "./project" {
+		t.Fatalf("location = %q; want ./project", location)
 	}
 }
 
@@ -229,6 +260,26 @@ func TestFetchIgnoreRetriesDownload(t *testing.T) {
 	}
 }
 
+func TestFetchIgnoresCombinesMultipleTemplates(t *testing.T) {
+	oldRetryDelay := retryDelay
+	retryDelay = 0
+	defer func() { retryDelay = oldRetryDelay }()
+
+	client := &fakeGitignoreClient{
+		listTemplates:    []string{"Go.gitignore", "Node.gitignore"},
+		downloadContents: [][]byte{[]byte("bin/\n"), []byte("node_modules/\r\n")},
+	}
+
+	content, err := fetchIgnores([]string{"go", "node"}, client)
+	if err != nil {
+		t.Fatalf("fetchIgnores() returned error: %v", err)
+	}
+
+	if got := string(content); got != "bin/\n\nnode_modules/\n" {
+		t.Fatalf("fetchIgnores() = %q; want combined templates", got)
+	}
+}
+
 func TestWithRetryStopsOnContextCancellation(t *testing.T) {
 	oldRetryDelay := retryDelay
 	retryDelay = time.Hour
@@ -265,6 +316,12 @@ func (c *fakeGitignoreClient) DownloadTemplate(ctx context.Context, templatePath
 	c.downloadedPath = templatePath
 	if err := nextErr(&c.downloadErrs); err != nil {
 		return nil, err
+	}
+
+	if len(c.downloadContents) > 0 {
+		content := c.downloadContents[0]
+		c.downloadContents = c.downloadContents[1:]
+		return content, nil
 	}
 
 	return c.downloadContent, nil

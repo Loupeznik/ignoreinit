@@ -71,7 +71,7 @@ func InitHandlers() {
 	})
 
 	gocmd.HandleFlag(fncInit, func(cmd *gocmd.Cmd, args []string) error {
-		language, location, err := handleParams(cmd.FlagArgs(fncInit)[1:])
+		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncInit)[1:])
 
 		if err != nil {
 			return err
@@ -85,7 +85,7 @@ func InitHandlers() {
 			return nil
 		}
 
-		err = getIgnore(language, location, true, false)
+		err = getIgnore(templates, location, true, false)
 
 		if err != nil {
 			return err
@@ -97,7 +97,7 @@ func InitHandlers() {
 	})
 
 	gocmd.HandleFlag(fncReplace, func(cmd *gocmd.Cmd, args []string) error {
-		language, location, err := handleParams(cmd.FlagArgs(fncReplace)[1:])
+		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncReplace)[1:])
 
 		if err != nil {
 			return err
@@ -111,7 +111,7 @@ func InitHandlers() {
 			return nil
 		}
 
-		err = getIgnore(language, location, false, false)
+		err = getIgnore(templates, location, false, false)
 
 		if err != nil {
 			return err
@@ -123,7 +123,7 @@ func InitHandlers() {
 	})
 
 	gocmd.HandleFlag(fncMerge, func(cmd *gocmd.Cmd, args []string) error {
-		language, location, err := handleParams(cmd.FlagArgs(fncMerge)[1:])
+		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncMerge)[1:])
 
 		if err != nil {
 			return err
@@ -137,7 +137,7 @@ func InitHandlers() {
 			return nil
 		}
 
-		err = getIgnore(language, location, false, true)
+		err = getIgnore(templates, location, false, true)
 
 		if err != nil {
 			return err
@@ -150,20 +150,47 @@ func InitHandlers() {
 }
 
 func handleParams(params []string) (string, string, error) {
+	templates, location, err := handleGenerationParams(params)
+	if err != nil {
+		return "", "", err
+	}
+
+	return templates[0], location, nil
+}
+
+func handleGenerationParams(params []string) ([]string, string, error) {
 	if len(params) == 0 {
-		return "", "", errors.New("no arguments supplied")
+		return nil, "", errors.New("no arguments supplied")
 	}
 
 	if len(params) == 1 {
-		params = append(params, ".")
+		return []string{params[0]}, ".", nil
 	}
 
-	return params[0], params[1], nil
+	lastParam := params[len(params)-1]
+	if looksLikeLocation(lastParam) {
+		return params[:len(params)-1], lastParam, nil
+	}
+
+	return params, ".", nil
 }
 
-func getIgnore(language string, location string, isNew bool, isMerge bool) error {
+func looksLikeLocation(value string) bool {
+	if value == "." || value == ".." || strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") || strings.HasPrefix(value, "~") || filepath.IsAbs(value) {
+		return true
+	}
+
+	if strings.ContainsAny(value, `/\`) || filepath.VolumeName(value) != "" {
+		return true
+	}
+
+	info, err := os.Stat(value)
+	return err == nil && info.IsDir()
+}
+
+func getIgnore(templates []string, location string, isNew bool, isMerge bool) error {
 	client := githubGitignoreClient{client: github.NewClient(nil)}
-	content, err := fetchIgnore(language, client)
+	content, err := fetchIgnores(templates, client)
 
 	if err != nil {
 		return err
@@ -186,26 +213,55 @@ func gitignoreExists(gitignorePath string) (bool, error) {
 }
 
 func fetchIgnore(language string, client gitignoreClient) ([]byte, error) {
+	return fetchIgnores([]string{language}, client)
+}
+
+func fetchIgnores(languages []string, client gitignoreClient) ([]byte, error) {
 	templates, err := listTemplates(client)
 	if err != nil {
 		return nil, err
 	}
 
-	templatePath := findTemplate(language, templates)
-	if templatePath == "" {
-		return nil, fmt.Errorf("could not find .gitignore template for %q; check the language name against github.com/github/gitignore", language)
+	contents := make([][]byte, 0, len(languages))
+	for _, language := range languages {
+		templatePath := findTemplate(language, templates)
+		if templatePath == "" {
+			return nil, fmt.Errorf("could not find .gitignore template for %q; check the language name against github.com/github/gitignore", language)
+		}
+
+		var content []byte
+		if err := withRetryTimeout(func(ctx context.Context) error {
+			var err error
+			content, err = client.DownloadTemplate(ctx, templatePath)
+			return err
+		}); err != nil {
+			return nil, fmt.Errorf("could not download .gitignore template for %q from %s/%s: %w", language, gitOwner, gitRepo, err)
+		}
+
+		contents = append(contents, content)
 	}
 
-	var content []byte
-	if err := withRetryTimeout(func(ctx context.Context) error {
-		var err error
-		content, err = client.DownloadTemplate(ctx, templatePath)
-		return err
-	}); err != nil {
-		return nil, fmt.Errorf("could not download .gitignore template for %q from %s/%s: %w", language, gitOwner, gitRepo, err)
+	return joinContent(contents), nil
+}
+
+func joinContent(contents [][]byte) []byte {
+	var joined []byte
+	for _, content := range contents {
+		content = bytes.TrimRight(content, "\r\n")
+		if len(bytes.TrimSpace(content)) == 0 {
+			continue
+		}
+
+		if len(joined) > 0 {
+			joined = append(joined, '\n', '\n')
+		}
+		joined = append(joined, content...)
+	}
+	if len(joined) > 0 {
+		joined = append(joined, '\n')
 	}
 
-	return content, nil
+	return joined
 }
 
 func listTemplateNames(client gitignoreClient) ([]string, error) {
