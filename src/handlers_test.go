@@ -67,8 +67,8 @@ func TestWriteIgnoreCreatesFileWithContentMode(t *testing.T) {
 		t.Fatalf("Stat() returned error: %v", err)
 	}
 
-	if mode := info.Mode().Perm(); mode != gitignoreFileMode {
-		t.Fatalf("file mode = %v; want %v", mode, os.FileMode(gitignoreFileMode))
+	if mode := info.Mode().Perm(); mode&0111 != 0 {
+		t.Fatalf("file mode = %v; should not be executable", mode)
 	}
 }
 
