@@ -63,6 +63,27 @@ func TestListTemplateNamesReturnsSortedNames(t *testing.T) {
 	}
 }
 
+func TestSearchNamesReturnsCloseMatches(t *testing.T) {
+	names := []string{"Go", "Node", "Terraform", "TeX", "VisualStudioCode"}
+
+	matches := searchNames("terfrm", names)
+
+	if len(matches) == 0 || matches[0] != "Terraform" {
+		t.Fatalf("searchNames() = %v; want Terraform as first match", matches)
+	}
+}
+
+func TestSearchNamesReturnsContainsMatchesBeforeSubsequenceMatches(t *testing.T) {
+	names := []string{"VisualStudioCode", "CodeKit", "Cloud9"}
+
+	matches := searchNames("code", names)
+
+	want := "CodeKit, VisualStudioCode"
+	if got := strings.Join(matches[:2], ", "); got != want {
+		t.Fatalf("searchNames() first matches = %q; want %q", got, want)
+	}
+}
+
 func TestWriteIgnoreCreatesFileWithContentMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")

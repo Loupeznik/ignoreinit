@@ -21,6 +21,7 @@ const (
 	fncReplace         = "Replace"
 	fncMerge           = "Merge"
 	fncList            = "List"
+	fncSearch          = "Search"
 	gitOwner           = "github"
 	gitRepo            = "gitignore"
 	gitignoreFileMode  = 0644
@@ -48,6 +49,24 @@ func InitHandlers() {
 		}
 
 		fmt.Println(strings.Join(templates, "\n"))
+		return nil
+	})
+
+	gocmd.HandleFlag(fncSearch, func(cmd *gocmd.Cmd, args []string) error {
+		params := cmd.FlagArgs(fncSearch)[1:]
+		if len(params) == 0 {
+			return errors.New("no search term supplied")
+		}
+
+		matches, err := searchTemplateNames(params[0], githubGitignoreClient{client: github.NewClient(nil)})
+		if err != nil {
+			return err
+		}
+		if len(matches) == 0 {
+			return fmt.Errorf("no .gitignore templates matched %q", params[0])
+		}
+
+		fmt.Println(strings.Join(matches, "\n"))
 		return nil
 	})
 
@@ -215,6 +234,146 @@ func listTemplates(client gitignoreClient) ([]string, error) {
 	}
 
 	return templates, nil
+}
+
+func searchTemplateNames(term string, client gitignoreClient) ([]string, error) {
+	names, err := listTemplateNames(client)
+	if err != nil {
+		return nil, err
+	}
+
+	return searchNames(term, names), nil
+}
+
+func searchNames(term string, names []string) []string {
+	term = strings.TrimSpace(term)
+	if term == "" {
+		return nil
+	}
+
+	matches := make([]templateMatch, 0, len(names))
+	for _, name := range names {
+		if score, ok := templateMatchScore(term, name); ok {
+			matches = append(matches, templateMatch{name: name, score: score})
+		}
+	}
+
+	sort.SliceStable(matches, func(i int, j int) bool {
+		if matches[i].score == matches[j].score {
+			return matches[i].name < matches[j].name
+		}
+
+		return matches[i].score < matches[j].score
+	})
+
+	results := make([]string, 0, len(matches))
+	for _, match := range matches {
+		results = append(results, match.name)
+	}
+
+	return results
+}
+
+type templateMatch struct {
+	name  string
+	score int
+}
+
+func templateMatchScore(term string, name string) (int, bool) {
+	normalizedTerm := normalizeTemplateName(term)
+	normalizedName := normalizeTemplateName(name)
+
+	switch {
+	case normalizedTerm == normalizedName:
+		return 0, true
+	case strings.HasPrefix(normalizedName, normalizedTerm):
+		return 10 + len(normalizedName) - len(normalizedTerm), true
+	case strings.Contains(normalizedName, normalizedTerm):
+		return 100 + strings.Index(normalizedName, normalizedTerm), true
+	}
+
+	if score, ok := subsequenceScore(normalizedTerm, normalizedName); ok {
+		return 200 + score, true
+	}
+
+	distance := editDistance(normalizedTerm, normalizedName)
+	if distance <= maxEditDistance(normalizedTerm) {
+		return 300 + distance, true
+	}
+
+	return 0, false
+}
+
+func normalizeTemplateName(value string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(value), " ", ""))
+}
+
+func subsequenceScore(term string, name string) (int, bool) {
+	if term == "" {
+		return 0, false
+	}
+
+	position := 0
+	score := 0
+	for _, char := range term {
+		index := strings.IndexRune(name[position:], char)
+		if index == -1 {
+			return 0, false
+		}
+
+		score += index
+		position += index + 1
+	}
+
+	return score + len(name) - len(term), true
+}
+
+func maxEditDistance(term string) int {
+	if len(term) <= 4 {
+		return 1
+	}
+
+	return len(term) / 3
+}
+
+func editDistance(left string, right string) int {
+	previous := make([]int, len(right)+1)
+	for index := range previous {
+		previous[index] = index
+	}
+
+	for leftIndex := 1; leftIndex <= len(left); leftIndex++ {
+		current := make([]int, len(right)+1)
+		current[0] = leftIndex
+
+		for rightIndex := 1; rightIndex <= len(right); rightIndex++ {
+			cost := 0
+			if left[leftIndex-1] != right[rightIndex-1] {
+				cost = 1
+			}
+
+			current[rightIndex] = minInt(
+				current[rightIndex-1]+1,
+				previous[rightIndex]+1,
+				previous[rightIndex-1]+cost,
+			)
+		}
+
+		previous = current
+	}
+
+	return previous[len(right)]
+}
+
+func minInt(values ...int) int {
+	minimum := values[0]
+	for _, value := range values[1:] {
+		if value < minimum {
+			minimum = value
+		}
+	}
+
+	return minimum
 }
 
 func withRetryTimeout(operation func(context.Context) error) error {

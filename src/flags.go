@@ -15,4 +15,7 @@ type Flags struct {
 	List struct {
 		Settings bool `settings:"true" allow-unknown-arg:"true"`
 	} `command:"list" description:"List available .gitignore templates"`
+	Search struct {
+		Settings bool `settings:"true" allow-unknown-arg:"true"`
+	} `command:"search" description:"Search available .gitignore templates - use ignoreinit search <term>" nonempty:"true"`
 }

@@ -15,6 +15,14 @@ Prints the available templates from [github/gitignore](https://github.com/github
 ignoreinit list
 ```
 
+### Search available templates
+
+Finds matching templates by exact name, partial name, or close spelling.
+
+```bash
+ignoreinit search <term>
+```
+
 ### Create new .gitignore
 
 Creates new .gitignore based on given language in defined location (either relative or absolute).
