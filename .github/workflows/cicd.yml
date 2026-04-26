@@ -2,148 +2,149 @@ name: CI/CD
 
 on:
   push:
-    branches: ["master", "devel"]
-    tags: ["v*.*.*"]
+    branches: [master]
+    tags: ['v*.*.*']
   pull_request:
-    branches: ["master"]
+    branches: [master]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    env:
-      GO111MODULE: on
-      APP_NAME: 'ignoreinit'
-      DEFAULT_BUILD_ARCH: 'amd64'
-
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-26
+          - os: windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4.2.1
+      - uses: actions/checkout@v6.0.2
 
-      - name: Set up Go
-        uses: actions/setup-go@v5.0.2
+      - uses: actions/setup-go@v6.4.0
         with:
-          go-version: "1.23"
+          go-version-file: go.mod
+          cache: true
 
-      - name: Install dependencies
-        run: go get
+      - name: build
+        run: go build ./...
 
-      - name: Build
-        shell: pwsh
-        run: ./build.ps1
+      - name: test
+        run: go test -race ./...
 
-      - name: Create deb
-        if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt
         run: |
-          REF=${{ github.ref_name }}
-          APP_VERSION=${REF//v/}
-          APP_ID=${{ env.APP_NAME }}_${APP_VERSION}_${{ env.DEFAULT_BUILD_ARCH }}
-          TMP_DIR=/tmp/$APP_ID
-          APP_DIR=$TMP_DIR/usr/local/bin
-          mkdir -p $APP_DIR
-          cp ./bin/${{ env.APP_NAME }}-${{ env.DEFAULT_BUILD_ARCH }}-linux $APP_DIR/${{ env.APP_NAME }}
-          mkdir $TMP_DIR/DEBIAN
-          
-          cat <<EOF > $TMP_DIR/DEBIAN/control
-          Package: ${{ env.APP_NAME }}
-          Version: $APP_VERSION
-          Architecture: ${{ env.DEFAULT_BUILD_ARCH }}
-          Maintainer: Dominik Zarsky <dzarsky@dzarsky.eu>
-          Description: A tool for creating .gitignore files from the command line.
-          EOF
-  
-          chmod +x $APP_DIR/${{ env.APP_NAME }}
-          dpkg-deb --build --root-owner-group $TMP_DIR
+          set -euo pipefail
+          unformatted=$(gofmt -l .)
+          unformatted=$(printf '%s\n' "$unformatted" | grep -v '^vendor/' || true)
+          if [ -n "$unformatted" ]; then
+            echo "files need gofmt:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
 
-      - name: Publish artifact
-        if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
-        uses: actions/upload-artifact@v4.4.3
-        with:
-          name: deb
-          path: /tmp/*.deb
+      - name: go vet
+        run: go vet ./...
 
-      - uses: actions/upload-artifact@v4.4.3
-        with:
-          name: artifact
-          path: ./bin/*
-
-  docker:
-    name: Docker
-    needs: build
-    if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
+  goreleaser-check:
+    name: goreleaser config check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.1
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v2.1.0
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@v7.0.0
+        with:
+          version: '~> v2.14'
+          args: check
+
+      - uses: docker/setup-qemu-action@v4.0.0
+
+      - uses: docker/setup-buildx-action@v4.0.0
+
+      - uses: sigstore/cosign-installer@v4.1.1
+
+      - name: Install snapcraft
+        run: |
+          sudo snap install snapcraft --classic
+          mkdir -p "$HOME/.cache/snapcraft/download"
+          mkdir -p "$HOME/.cache/snapcraft/stage-packages"
+
+      - uses: goreleaser/goreleaser-action@v7.0.0
+        with:
+          version: '~> v2.14'
+          args: release --snapshot --clean --skip=publish
+
+  release:
+    name: goreleaser
+    needs:
+      - test
+      - lint
+      - goreleaser-check
+    if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: docker/setup-qemu-action@v4.0.0
+
+      - uses: docker/setup-buildx-action@v4.0.0
+
+      - uses: sigstore/cosign-installer@v4.1.1
+
+      - uses: docker/login-action@v4.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4.0.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            loupeznik/ignoreinit:${{ github.ref_name }}
-            loupeznik/ignoreinit:latest
+      - name: Install snapcraft
+        run: |
+          sudo snap install snapcraft --classic
+          mkdir -p "$HOME/.cache/snapcraft/download"
+          mkdir -p "$HOME/.cache/snapcraft/stage-packages"
 
-#  apt:
-#    name: APT release
-#    needs: build
-#    if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
-#    runs-on: oc-ubuntu-4
-#    steps:
-#      - uses: actions/download-artifact@v4
-#        with:
-#          name: deb
-#          path: output
-#
-#      - name: Publish package
-#        run: |
-#            GPG_TTY=$(tty)
-#            export GPG_TTY
-#
-#            cd /opt/repo/apt
-#            cp /tmp/dist/*.deb amd64
-#
-#            dpkg-scanpackages --arch amd64 --multiversion . > Packages
-#            gzip -k -f Packages
-#
-#            apt-ftparchive release . > Release
-#
-#            echo ${{ secrets.GPG_KEY_PASSPHRASE }} > /tmp/gpg_secret
-#            chmod 600 /tmp/gpg_secret
-#            gpg --pinentry-mode loopback --passphrase-file "/tmp/gpg_secret" --yes -abs -u ${{ SECRETS.GPG_KEY_ID }} -o Release.gpg Release
-#            rm /tmp/gpg_secret
-#            rm -rf /tmp/dist
-  
-  release:
-    name: Release
-    needs:
-      - build
-      #- apt
-      - docker
-    if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')}}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
+      - uses: goreleaser/goreleaser-action@v7.0.0
         with:
-          name: artifact
-          path: output
-
-      - name: Create a release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            output/**/*
-          generate_release_notes: true
-          name: "${{ github.ref_name }}"
+          version: '~> v2.14'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          AUR_KEY: ${{ secrets.AUR_KEY }}
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
