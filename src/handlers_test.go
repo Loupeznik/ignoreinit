@@ -3,6 +3,7 @@ package src
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,7 +120,7 @@ func TestWriteIgnoreCreatesFileWithContentMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")
 
-	if err := writeIgnore(path, []byte("bin/\n"), true, false); err != nil {
+	if err := writeIgnore(path, []byte("bin/\n"), true, false, false); err != nil {
 		t.Fatalf("writeIgnore() returned error: %v", err)
 	}
 
@@ -149,7 +150,7 @@ func TestWriteIgnoreMergesWithBlankLineSeparator(t *testing.T) {
 		t.Fatalf("WriteFile() returned error: %v", err)
 	}
 
-	if err := writeIgnore(path, []byte("dist/\n"), false, true); err != nil {
+	if err := writeIgnore(path, []byte("dist/\n"), false, true, false); err != nil {
 		t.Fatalf("writeIgnore() returned error: %v", err)
 	}
 
@@ -170,7 +171,7 @@ func TestWriteIgnoreMergesCRLFContentWithCleanSeparator(t *testing.T) {
 		t.Fatalf("WriteFile() returned error: %v", err)
 	}
 
-	if err := writeIgnore(path, []byte("dist/\n"), false, true); err != nil {
+	if err := writeIgnore(path, []byte("dist/\n"), false, true, false); err != nil {
 		t.Fatalf("writeIgnore() returned error: %v", err)
 	}
 
@@ -191,9 +192,28 @@ func TestWriteIgnoreWrapsWriteErrors(t *testing.T) {
 		t.Fatalf("Mkdir() returned error: %v", err)
 	}
 
-	err := writeIgnore(path, []byte("bin/\n"), false, false)
+	err := writeIgnore(path, []byte("bin/\n"), false, false, false)
 	if err == nil || !strings.Contains(err.Error(), "could not write") {
 		t.Fatalf("writeIgnore() error = %v; want wrapped write error", err)
+	}
+}
+
+func TestWriteIgnorePrintsToStdout(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+
+	output := captureStdout(t, func() {
+		if err := writeIgnore(path, []byte("bin/\n"), true, false, true); err != nil {
+			t.Fatalf("writeIgnore() returned error: %v", err)
+		}
+	})
+
+	if !strings.HasPrefix(output, generatedHeader) || !strings.Contains(output, "bin/\n") {
+		t.Fatalf("stdout = %q; want generated content", output)
+	}
+
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("printed write created file or returned unexpected error: %v", err)
 	}
 }
 
@@ -335,4 +355,29 @@ func nextErr(errs *[]error) error {
 	err := (*errs)[0]
 	*errs = (*errs)[1:]
 	return err
+}
+
+func captureStdout(t *testing.T, action func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() returned error: %v", err)
+	}
+
+	os.Stdout = writer
+	action()
+
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() returned error: %v", err)
+	}
+	os.Stdout = oldStdout
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll() returned error: %v", err)
+	}
+
+	return string(output)
 }

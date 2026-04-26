@@ -72,58 +72,69 @@ func InitHandlers() {
 
 	gocmd.HandleFlag(fncInit, func(cmd *gocmd.Cmd, args []string) error {
 		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncInit)[1:])
+		shouldPrint := cmd.FlagValue(fncInit+".Print") == true
 
 		if err != nil {
 			return err
 		}
 
-		gitignorePath := filepath.Join(location, ".gitignore")
-		if exists, err := gitignoreExists(gitignorePath); err != nil {
-			return err
-		} else if exists {
-			fmt.Printf(".gitignore already exists in %s\n", location)
-			return nil
+		if !shouldPrint {
+			gitignorePath := filepath.Join(location, ".gitignore")
+			if exists, err := gitignoreExists(gitignorePath); err != nil {
+				return err
+			} else if exists {
+				fmt.Printf(".gitignore already exists in %s\n", location)
+				return nil
+			}
 		}
 
-		err = getIgnore(templates, location, true, false)
+		err = getIgnore(templates, location, true, false, shouldPrint)
 
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Created .gitignore in %s\n", location)
+		if !shouldPrint {
+			fmt.Printf("Created .gitignore in %s\n", location)
+		}
 
 		return nil
 	})
 
 	gocmd.HandleFlag(fncReplace, func(cmd *gocmd.Cmd, args []string) error {
 		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncReplace)[1:])
+		shouldPrint := cmd.FlagValue(fncReplace+".Print") == true
 
 		if err != nil {
 			return err
 		}
 
-		gitignorePath := filepath.Join(location, ".gitignore")
-		if exists, err := gitignoreExists(gitignorePath); err != nil {
-			return err
-		} else if !exists {
-			fmt.Printf(".gitignore does not exist in %s\n", location)
-			return nil
+		if !shouldPrint {
+			gitignorePath := filepath.Join(location, ".gitignore")
+			if exists, err := gitignoreExists(gitignorePath); err != nil {
+				return err
+			} else if !exists {
+				fmt.Printf(".gitignore does not exist in %s\n", location)
+				return nil
+			}
 		}
 
-		err = getIgnore(templates, location, false, false)
+		err = getIgnore(templates, location, false, false, shouldPrint)
 
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Replaced .gitignore in %s\n", location)
+		if !shouldPrint {
+			fmt.Printf("Replaced .gitignore in %s\n", location)
+		}
 
 		return nil
 	})
 
 	gocmd.HandleFlag(fncMerge, func(cmd *gocmd.Cmd, args []string) error {
 		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncMerge)[1:])
+		shouldPrint := cmd.FlagValue(fncMerge+".Print") == true
 
 		if err != nil {
 			return err
@@ -137,13 +148,15 @@ func InitHandlers() {
 			return nil
 		}
 
-		err = getIgnore(templates, location, false, true)
+		err = getIgnore(templates, location, false, true, shouldPrint)
 
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Merged .gitignore in %s\n", location)
+		if !shouldPrint {
+			fmt.Printf("Merged .gitignore in %s\n", location)
+		}
 
 		return nil
 	})
@@ -188,7 +201,7 @@ func looksLikeLocation(value string) bool {
 	return err == nil && info.IsDir()
 }
 
-func getIgnore(templates []string, location string, isNew bool, isMerge bool) error {
+func getIgnore(templates []string, location string, isNew bool, isMerge bool, shouldPrint bool) error {
 	client := githubGitignoreClient{client: github.NewClient(nil)}
 	content, err := fetchIgnores(templates, client)
 
@@ -196,7 +209,7 @@ func getIgnore(templates []string, location string, isNew bool, isMerge bool) er
 		return err
 	}
 
-	return writeIgnore(filepath.Join(location, ".gitignore"), content, isNew, isMerge)
+	return writeIgnore(filepath.Join(location, ".gitignore"), content, isNew, isMerge, shouldPrint)
 }
 
 func gitignoreExists(gitignorePath string) (bool, error) {
@@ -479,7 +492,7 @@ func templateName(template string) string {
 	return strings.TrimSuffix(filepath.Base(template), filepath.Ext(template))
 }
 
-func writeIgnore(gitignorePath string, content []byte, isNew bool, isMerge bool) error {
+func writeIgnore(gitignorePath string, content []byte, isNew bool, isMerge bool, shouldPrint bool) error {
 	if isMerge {
 		existing, err := os.ReadFile(gitignorePath)
 		if err != nil {
@@ -489,6 +502,11 @@ func writeIgnore(gitignorePath string, content []byte, isNew bool, isMerge bool)
 		content = mergeIgnore(existing, content)
 	} else if isNew {
 		content = append([]byte(generatedHeader), content...)
+	}
+
+	if shouldPrint {
+		_, err := os.Stdout.Write(content)
+		return err
 	}
 
 	if err := os.WriteFile(gitignorePath, content, gitignoreFileMode); err != nil {

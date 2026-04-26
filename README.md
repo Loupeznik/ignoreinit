@@ -38,6 +38,12 @@ ignoreinit init go node terraform
 ignoreinit init go node terraform ./my-project
 ```
 
+Use `--print` to write generated content to stdout instead of `.gitignore`:
+
+```bash
+ignoreinit init go node --print > .gitignore
+```
+
 ### Replace existing gitignore
 
 Replaces existing .gitignore based on given language in defined location (either relative or absolute).
