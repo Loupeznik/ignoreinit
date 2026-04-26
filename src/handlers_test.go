@@ -45,6 +45,24 @@ func TestFindTemplateIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestListTemplateNamesReturnsSortedNames(t *testing.T) {
+	oldRetryDelay := retryDelay
+	retryDelay = 0
+	defer func() { retryDelay = oldRetryDelay }()
+
+	client := &fakeGitignoreClient{listTemplates: []string{"Node.gitignore", "Global/Linux.gitignore", "Go.gitignore"}}
+
+	names, err := listTemplateNames(client)
+	if err != nil {
+		t.Fatalf("listTemplateNames() returned error: %v", err)
+	}
+
+	want := "Go, Linux, Node"
+	if got := strings.Join(names, ", "); got != want {
+		t.Fatalf("listTemplateNames() = %q; want %q", got, want)
+	}
+}
+
 func TestWriteIgnoreCreatesFileWithContentMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")

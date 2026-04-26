@@ -7,6 +7,14 @@ Ignoreinit is a tool for creating .gitignore files from the command line. Gitign
 
 ## Usage
 
+### List available templates
+
+Prints the available templates from [github/gitignore](https://github.com/github/gitignore).
+
+```bash
+ignoreinit list
+```
+
 ### Create new .gitignore
 
 Creates new .gitignore based on given language in defined location (either relative or absolute).

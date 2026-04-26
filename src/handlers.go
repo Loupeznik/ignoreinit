@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ const (
 	fncInit            = "Init"
 	fncReplace         = "Replace"
 	fncMerge           = "Merge"
+	fncList            = "List"
 	gitOwner           = "github"
 	gitRepo            = "gitignore"
 	gitignoreFileMode  = 0644
@@ -39,6 +41,16 @@ type githubGitignoreClient struct {
 }
 
 func InitHandlers() {
+	gocmd.HandleFlag(fncList, func(cmd *gocmd.Cmd, args []string) error {
+		templates, err := listTemplateNames(githubGitignoreClient{client: github.NewClient(nil)})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(strings.Join(templates, "\n"))
+		return nil
+	})
+
 	gocmd.HandleFlag(fncInit, func(cmd *gocmd.Cmd, args []string) error {
 		language, location, err := handleParams(cmd.FlagArgs(fncInit)[1:])
 
@@ -155,13 +167,9 @@ func gitignoreExists(gitignorePath string) (bool, error) {
 }
 
 func fetchIgnore(language string, client gitignoreClient) ([]byte, error) {
-	var templates []string
-	if err := withRetryTimeout(func(ctx context.Context) error {
-		var err error
-		templates, err = client.ListTemplates(ctx)
-		return err
-	}); err != nil {
-		return nil, fmt.Errorf("could not list gitignore templates from %s/%s: %w", gitOwner, gitRepo, err)
+	templates, err := listTemplates(client)
+	if err != nil {
+		return nil, err
 	}
 
 	templatePath := findTemplate(language, templates)
@@ -179,6 +187,34 @@ func fetchIgnore(language string, client gitignoreClient) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+func listTemplateNames(client gitignoreClient) ([]string, error) {
+	templates, err := listTemplates(client)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(templates))
+	for _, template := range templates {
+		names = append(names, templateName(template))
+	}
+	sort.Strings(names)
+
+	return names, nil
+}
+
+func listTemplates(client gitignoreClient) ([]string, error) {
+	var templates []string
+	if err := withRetryTimeout(func(ctx context.Context) error {
+		var err error
+		templates, err = client.ListTemplates(ctx)
+		return err
+	}); err != nil {
+		return nil, fmt.Errorf("could not list gitignore templates from %s/%s: %w", gitOwner, gitRepo, err)
+	}
+
+	return templates, nil
 }
 
 func withRetryTimeout(operation func(context.Context) error) error {
@@ -216,13 +252,16 @@ func withRetry(ctx context.Context, operation func() error) error {
 
 func findTemplate(language string, templates []string) string {
 	for _, template := range templates {
-		name := strings.TrimSuffix(filepath.Base(template), filepath.Ext(template))
-		if strings.EqualFold(name, language) {
+		if strings.EqualFold(templateName(template), language) {
 			return template
 		}
 	}
 
 	return ""
+}
+
+func templateName(template string) string {
+	return strings.TrimSuffix(filepath.Base(template), filepath.Ext(template))
 }
 
 func writeIgnore(gitignorePath string, content []byte, isNew bool, isMerge bool) error {

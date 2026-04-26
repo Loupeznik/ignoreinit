@@ -12,4 +12,7 @@ type Flags struct {
 	Merge struct {
 		Settings bool `settings:"true" allow-unknown-arg:"true"`
 	} `command:"merge" description:"Merge a new gitignore into current .gitignore - use ignoreinit merge <language> <location>" nonempty:"true"`
+	List struct {
+		Settings bool `settings:"true" allow-unknown-arg:"true"`
+	} `command:"list" description:"List available .gitignore templates"`
 }
