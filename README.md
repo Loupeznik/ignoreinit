@@ -7,28 +7,67 @@ Ignoreinit is a tool for creating .gitignore files from the command line. Gitign
 
 ## Usage
 
-### Create new .gitignore
+### List available templates
 
-Creates new .gitignore based on given language in defined location (either relative or absolute).
+Prints the available templates from [github/gitignore](https://github.com/github/gitignore).
 
 ```bash
-ignoreinit init <language> <location>
+ignoreinit list
+```
+
+### Search available templates
+
+Finds matching templates by exact name, partial name, or close spelling.
+
+```bash
+ignoreinit search <term>
+```
+
+### Generate shell completions
+
+Prints shell completion scripts for bash, zsh, fish, or PowerShell.
+
+```bash
+ignoreinit completion <bash|zsh|fish|powershell>
+```
+
+### Create new .gitignore
+
+Creates new .gitignore based on given templates in defined location (either relative or absolute).
+
+```bash
+ignoreinit init <template...> <location>
+```
+
+If location is omitted, ignoreinit writes to the current directory. Use explicit path syntax such as `./my-project` for a relative location. Pass multiple templates to combine them:
+
+```bash
+ignoreinit init go node terraform
+ignoreinit init go node terraform ./my-project
+```
+
+Combined output is grouped with ignoreinit section markers. Merge mode keeps existing content first and avoids stacking duplicate generated section markers.
+
+Use `--print` to write generated content to stdout instead of `.gitignore`:
+
+```bash
+ignoreinit init go node --print > .gitignore
 ```
 
 ### Replace existing gitignore
 
-Replaces existing .gitignore based on given language in defined location (either relative or absolute).
+Replaces existing .gitignore based on given templates in defined location (either relative or absolute).
 
 ```bash
-ignoreinit replace <language> <location>
+ignoreinit replace <template...> <location>
 ```
 
 ### Merge existing gitignore
 
-Merges a gitignore for given language into existing .gitignore in defined location (either relative or absolute).
+Merges gitignore templates into existing .gitignore in defined location (either relative or absolute).
 
 ```bash
-ignoreinit merge <language> <location>
+ignoreinit merge <template...> <location>
 ```
 
 ## Build from source
