@@ -21,4 +21,7 @@ type Flags struct {
 	Search struct {
 		Settings bool `settings:"true" allow-unknown-arg:"true"`
 	} `command:"search" description:"Search available .gitignore templates - use ignoreinit search <term>" nonempty:"true"`
+	Completion struct {
+		Settings bool `settings:"true" allow-unknown-arg:"true"`
+	} `command:"completion" description:"Generate shell completion - use ignoreinit completion <bash|zsh|fish|powershell>" nonempty:"true"`
 }

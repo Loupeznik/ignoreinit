@@ -23,6 +23,14 @@ Finds matching templates by exact name, partial name, or close spelling.
 ignoreinit search <term>
 ```
 
+### Generate shell completions
+
+Prints shell completion scripts for bash, zsh, fish, or PowerShell.
+
+```bash
+ignoreinit completion <bash|zsh|fish|powershell>
+```
+
 ### Create new .gitignore
 
 Creates new .gitignore based on given language in defined location (either relative or absolute).

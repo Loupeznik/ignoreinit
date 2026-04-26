@@ -22,6 +22,7 @@ const (
 	fncMerge           = "Merge"
 	fncList            = "List"
 	fncSearch          = "Search"
+	fncCompletion      = "Completion"
 	gitOwner           = "github"
 	gitRepo            = "gitignore"
 	gitignoreFileMode  = 0644
@@ -69,6 +70,21 @@ func InitHandlers() {
 		}
 
 		fmt.Println(strings.Join(matches, "\n"))
+		return nil
+	})
+
+	gocmd.HandleFlag(fncCompletion, func(cmd *gocmd.Cmd, args []string) error {
+		params := cmd.FlagArgs(fncCompletion)[1:]
+		if len(params) == 0 {
+			return errors.New("no shell supplied")
+		}
+
+		completion, err := generateCompletion(params[0])
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(completion)
 		return nil
 	})
 
@@ -460,6 +476,130 @@ func minInt(values ...int) int {
 	}
 
 	return minimum
+}
+
+func generateCompletion(shell string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(shell)) {
+	case "bash":
+		return bashCompletion(), nil
+	case "zsh":
+		return zshCompletion(), nil
+	case "fish":
+		return fishCompletion(), nil
+	case "powershell", "pwsh":
+		return powershellCompletion(), nil
+	default:
+		return "", fmt.Errorf("unsupported shell %q; supported shells: bash, zsh, fish, powershell", shell)
+	}
+}
+
+func bashCompletion() string {
+	return `_ignoreinit_completion() {
+  local current previous commands shells
+  COMPREPLY=()
+  current="${COMP_WORDS[COMP_CWORD]}"
+  previous="${COMP_WORDS[COMP_CWORD-1]}"
+  commands="init replace merge list search completion"
+  shells="bash zsh fish powershell"
+
+  if [[ ${COMP_CWORD} -eq 1 ]]; then
+    COMPREPLY=( $(compgen -W "${commands}" -- "${current}") )
+    return 0
+  fi
+
+  if [[ ${COMP_WORDS[1]} == "completion" && ${COMP_CWORD} -eq 2 ]]; then
+    COMPREPLY=( $(compgen -W "${shells}" -- "${current}") )
+    return 0
+  fi
+
+  case "${previous}" in
+    init|replace|merge)
+      COMPREPLY=( $(compgen -W "--print -p" -- "${current}") )
+      ;;
+  esac
+}
+
+complete -F _ignoreinit_completion ignoreinit
+`
+}
+
+func zshCompletion() string {
+	return `#compdef ignoreinit
+
+_ignoreinit() {
+  local -a commands shells generation_flags
+  commands=(
+    'init:initialize .gitignore'
+    'replace:replace current .gitignore'
+    'merge:merge templates into current .gitignore'
+    'list:list available templates'
+    'search:search available templates'
+    'completion:generate shell completion'
+  )
+  shells=(bash zsh fish powershell)
+  generation_flags=('--print[print generated content to stdout]' '-p[print generated content to stdout]')
+
+  if (( CURRENT == 2 )); then
+    _describe 'commands' commands
+    return
+  fi
+
+  case "$words[2]" in
+    completion)
+      _describe 'shells' shells
+      ;;
+    init|replace|merge)
+      _describe 'options' generation_flags
+      ;;
+  esac
+}
+
+compdef _ignoreinit ignoreinit
+`
+}
+
+func fishCompletion() string {
+	return `complete -c ignoreinit -f
+complete -c ignoreinit -n "__fish_use_subcommand" -a "init" -d "Initialize .gitignore"
+complete -c ignoreinit -n "__fish_use_subcommand" -a "replace" -d "Replace current .gitignore"
+complete -c ignoreinit -n "__fish_use_subcommand" -a "merge" -d "Merge templates into current .gitignore"
+complete -c ignoreinit -n "__fish_use_subcommand" -a "list" -d "List available templates"
+complete -c ignoreinit -n "__fish_use_subcommand" -a "search" -d "Search available templates"
+complete -c ignoreinit -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion"
+complete -c ignoreinit -n "__fish_seen_subcommand_from init replace merge" -s p -l print -d "Print generated content to stdout"
+complete -c ignoreinit -n "__fish_seen_subcommand_from completion" -a "bash zsh fish powershell"
+`
+}
+
+func powershellCompletion() string {
+	return `Register-ArgumentCompleter -Native -CommandName ignoreinit -ScriptBlock {
+  param($wordToComplete, $commandAst, $cursorPosition)
+
+  $commands = @("init", "replace", "merge", "list", "search", "completion")
+  $shells = @("bash", "zsh", "fish", "powershell")
+  $words = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
+
+  if ($words.Count -le 2) {
+    $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+      [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)
+    }
+    return
+  }
+
+  if ($words[1] -eq "completion") {
+    $shells | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+      [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)
+    }
+    return
+  }
+
+  if ($words[1] -in @("init", "replace", "merge")) {
+    @("--print", "-p") | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+      [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterName", $_)
+    }
+  }
+}
+`
 }
 
 func withRetryTimeout(operation func(context.Context) error) error {

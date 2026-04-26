@@ -116,6 +116,24 @@ func TestSearchNamesReturnsContainsMatchesBeforeSubsequenceMatches(t *testing.T)
 	}
 }
 
+func TestGenerateCompletionSupportsBash(t *testing.T) {
+	completion, err := generateCompletion("bash")
+	if err != nil {
+		t.Fatalf("generateCompletion() returned error: %v", err)
+	}
+
+	if !strings.Contains(completion, "complete -F _ignoreinit_completion ignoreinit") {
+		t.Fatalf("bash completion = %q; want bash completion function", completion)
+	}
+}
+
+func TestGenerateCompletionRejectsUnsupportedShell(t *testing.T) {
+	_, err := generateCompletion("elvish")
+	if err == nil || !strings.Contains(err.Error(), "unsupported shell") {
+		t.Fatalf("generateCompletion() error = %v; want unsupported shell error", err)
+	}
+}
+
 func TestWriteIgnoreCreatesFileWithContentMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")
