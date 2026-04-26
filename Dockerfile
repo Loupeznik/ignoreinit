@@ -1,18 +1,21 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26.2-alpine3.23 AS builder
 
 WORKDIR /build
 
-COPY go.mod .
-COPY go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o ./ignoreinit ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ignoreinit .
 
-FROM alpine:latest
+FROM alpine:3.23.4
+
+RUN apk add --no-cache ca-certificates && addgroup -S ignoreinit && adduser -S -G ignoreinit ignoreinit
 
 WORKDIR /work
 
-COPY --from=builder /build/ignoreinit /app/ignoreinit
+COPY --from=builder /out/ignoreinit /usr/local/bin/ignoreinit
 
-ENTRYPOINT ["/app/ignoreinit"]
+USER ignoreinit:ignoreinit
+
+ENTRYPOINT ["/usr/local/bin/ignoreinit"]
