@@ -185,6 +185,27 @@ func TestWriteIgnoreMergesCRLFContentWithCleanSeparator(t *testing.T) {
 	}
 }
 
+func TestWriteIgnoreMergesWithoutDuplicatePatterns(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(path, []byte("bin/\n"), gitignoreFileMode); err != nil {
+		t.Fatalf("WriteFile() returned error: %v", err)
+	}
+
+	if err := writeIgnore(path, []byte("bin/\ndist/\n"), false, true, false); err != nil {
+		t.Fatalf("writeIgnore() returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() returned error: %v", err)
+	}
+
+	if got := string(content); got != "bin/\n\ndist/\n" {
+		t.Fatalf("merged content = %q; want duplicate pattern removed", got)
+	}
+}
+
 func TestWriteIgnoreWrapsWriteErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")
@@ -233,8 +254,8 @@ func TestFetchIgnoreRetriesTemplateList(t *testing.T) {
 		t.Fatalf("fetchIgnore() returned error: %v", err)
 	}
 
-	if string(content) != "bin/\n" {
-		t.Fatalf("fetchIgnore() = %q; want bin/", string(content))
+	if got := string(content); got != "# >>> ignoreinit: Go\nbin/\n# <<< ignoreinit: Go\n" {
+		t.Fatalf("fetchIgnore() = %q; want sectioned Go template", got)
 	}
 
 	if client.listCalls != 2 {
@@ -295,7 +316,8 @@ func TestFetchIgnoresCombinesMultipleTemplates(t *testing.T) {
 		t.Fatalf("fetchIgnores() returned error: %v", err)
 	}
 
-	if got := string(content); got != "bin/\n\nnode_modules/\n" {
+	want := "# >>> ignoreinit: Go\nbin/\n# <<< ignoreinit: Go\n\n# >>> ignoreinit: Node\nnode_modules/\n# <<< ignoreinit: Node\n"
+	if got := string(content); got != want {
 		t.Fatalf("fetchIgnores() = %q; want combined templates", got)
 	}
 }
