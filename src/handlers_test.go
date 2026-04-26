@@ -93,6 +93,27 @@ func TestWriteIgnoreMergesWithBlankLineSeparator(t *testing.T) {
 	}
 }
 
+func TestWriteIgnoreMergesCRLFContentWithCleanSeparator(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(path, []byte("bin/\r\n"), gitignoreFileMode); err != nil {
+		t.Fatalf("WriteFile() returned error: %v", err)
+	}
+
+	if err := writeIgnore(path, []byte("dist/\n"), false, true); err != nil {
+		t.Fatalf("writeIgnore() returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() returned error: %v", err)
+	}
+
+	if got := string(content); got != "bin/\n\ndist/\n" {
+		t.Fatalf("merged content = %q; want normalized blank-line separator", got)
+	}
+}
+
 func TestWriteIgnoreWrapsWriteErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")

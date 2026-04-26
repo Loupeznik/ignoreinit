@@ -132,13 +132,13 @@ func handleParams(params []string) (string, string, error) {
 
 func getIgnore(language string, location string, isNew bool, isMerge bool) error {
 	client := githubGitignoreClient{client: github.NewClient(nil)}
-	bytes, err := fetchIgnore(language, client)
+	content, err := fetchIgnore(language, client)
 
 	if err != nil {
 		return err
 	}
 
-	return writeIgnore(filepath.Join(location, ".gitignore"), bytes, isNew, isMerge)
+	return writeIgnore(filepath.Join(location, ".gitignore"), content, isNew, isMerge)
 }
 
 func gitignoreExists(gitignorePath string) (bool, error) {
@@ -155,11 +155,8 @@ func gitignoreExists(gitignorePath string) (bool, error) {
 }
 
 func fetchIgnore(language string, client gitignoreClient) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	defer cancel()
-
 	var templates []string
-	if err := withRetry(ctx, func() error {
+	if err := withRetryTimeout(func(ctx context.Context) error {
 		var err error
 		templates, err = client.ListTemplates(ctx)
 		return err
@@ -173,7 +170,7 @@ func fetchIgnore(language string, client gitignoreClient) ([]byte, error) {
 	}
 
 	var content []byte
-	if err := withRetry(ctx, func() error {
+	if err := withRetryTimeout(func(ctx context.Context) error {
 		var err error
 		content, err = client.DownloadTemplate(ctx, templatePath)
 		return err
@@ -182,6 +179,15 @@ func fetchIgnore(language string, client gitignoreClient) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+func withRetryTimeout(operation func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+
+	return withRetry(ctx, func() error {
+		return operation(ctx)
+	})
 }
 
 func withRetry(ctx context.Context, operation func() error) error {
@@ -242,7 +248,7 @@ func mergeIgnore(existing []byte, content []byte) []byte {
 	merged := append([]byte{}, existing...)
 
 	if len(bytes.TrimSpace(merged)) > 0 {
-		merged = bytes.TrimRight(merged, "\n")
+		merged = bytes.TrimRight(merged, "\r\n")
 		merged = append(merged, '\n', '\n')
 	}
 
@@ -272,6 +278,9 @@ func (c githubGitignoreClient) DownloadTemplate(ctx context.Context, templatePat
 	if err != nil {
 		return nil, err
 	}
+	if reader != nil {
+		defer reader.Close()
+	}
 
 	if response == nil || response.Response == nil || response.StatusCode != 200 {
 		status := "unknown status"
@@ -281,8 +290,6 @@ func (c githubGitignoreClient) DownloadTemplate(ctx context.Context, templatePat
 
 		return nil, fmt.Errorf("unexpected GitHub response: %s", status)
 	}
-
-	defer reader.Close()
 
 	content, err := io.ReadAll(reader)
 	if err != nil {

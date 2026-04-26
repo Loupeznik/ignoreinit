@@ -43,10 +43,10 @@ go build -o build/ignoreinit github.com/loupeznik/ignoreinit
 
 ```bash
 # Create .gitignore in the current directory
-docker run --rm -v ${PWD}:/work loupeznik/ignoreinit:latest init go .
+docker run --rm --user "$(id -u):$(id -g)" -v ${PWD}:/work loupeznik/ignoreinit:latest init go .
 
 # Create .gitignore in another directory directory
-docker run --rm -v $HOME/projects:/work loupeznik/ignoreinit:latest init go .
+docker run --rm --user "$(id -u):$(id -g)" -v $HOME/projects:/work loupeznik/ignoreinit:latest init go .
 ```
 
 ## Install

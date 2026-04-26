@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ignorei
 
 FROM alpine:3.23.4
 
-RUN apk add --no-cache ca-certificates && addgroup -S ignoreinit && adduser -S -G ignoreinit ignoreinit
+RUN apk add --no-cache ca-certificates && addgroup -S ignoreinit && adduser -S -G ignoreinit ignoreinit && mkdir -p /work && chown ignoreinit:ignoreinit /work
 
 WORKDIR /work
 
