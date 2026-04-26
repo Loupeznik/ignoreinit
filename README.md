@@ -33,13 +33,13 @@ ignoreinit completion <bash|zsh|fish|powershell>
 
 ### Create new .gitignore
 
-Creates new .gitignore based on given language in defined location (either relative or absolute).
+Creates new .gitignore based on given templates in defined location (either relative or absolute).
 
 ```bash
 ignoreinit init <template...> <location>
 ```
 
-If location is omitted, ignoreinit writes to the current directory. Pass multiple templates to combine them:
+If location is omitted, ignoreinit writes to the current directory. Use explicit path syntax such as `./my-project` for a relative location. Pass multiple templates to combine them:
 
 ```bash
 ignoreinit init go node terraform
@@ -56,7 +56,7 @@ ignoreinit init go node --print > .gitignore
 
 ### Replace existing gitignore
 
-Replaces existing .gitignore based on given language in defined location (either relative or absolute).
+Replaces existing .gitignore based on given templates in defined location (either relative or absolute).
 
 ```bash
 ignoreinit replace <template...> <location>
@@ -64,7 +64,7 @@ ignoreinit replace <template...> <location>
 
 ### Merge existing gitignore
 
-Merges a gitignore for given language into existing .gitignore in defined location (either relative or absolute).
+Merges gitignore templates into existing .gitignore in defined location (either relative or absolute).
 
 ```bash
 ignoreinit merge <template...> <location>

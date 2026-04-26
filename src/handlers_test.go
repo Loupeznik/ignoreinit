@@ -70,6 +70,28 @@ func TestHandleGenerationParamsUsesExplicitLocation(t *testing.T) {
 	}
 }
 
+func TestHandleGenerationParamsDoesNotStatImplicitLocation(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	if err := os.Mkdir("project", 0755); err != nil {
+		t.Fatalf("Mkdir() returned error: %v", err)
+	}
+
+	templates, location, err := handleGenerationParams([]string{"go", "project"})
+	if err != nil {
+		t.Fatalf("handleGenerationParams() returned error: %v", err)
+	}
+
+	if got := strings.Join(templates, ", "); got != "go, project" {
+		t.Fatalf("templates = %q; want go, project", got)
+	}
+
+	if location != "." {
+		t.Fatalf("location = %q; want .", location)
+	}
+}
+
 func TestFindTemplateIsCaseInsensitive(t *testing.T) {
 	template := findTemplate("go", []string{"Global/Linux.gitignore", "Go.gitignore"})
 	if template != "Go.gitignore" {
@@ -224,6 +246,31 @@ func TestWriteIgnoreMergesWithoutDuplicatePatterns(t *testing.T) {
 	}
 }
 
+func TestWriteIgnoreMergesWithoutDuplicateSectionMarkers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	existing := "# >>> ignoreinit: Go\nbin/\n# <<< ignoreinit: Go\n"
+	if err := os.WriteFile(path, []byte(existing), gitignoreFileMode); err != nil {
+		t.Fatalf("WriteFile() returned error: %v", err)
+	}
+
+	if err := writeIgnore(path, []byte(existing), false, true, false); err != nil {
+		t.Fatalf("writeIgnore() returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() returned error: %v", err)
+	}
+
+	if got := strings.Count(string(content), "# >>> ignoreinit: Go"); got != 1 {
+		t.Fatalf("section start count = %d; want 1", got)
+	}
+	if got := strings.Count(string(content), "# <<< ignoreinit: Go"); got != 1 {
+		t.Fatalf("section end count = %d; want 1", got)
+	}
+}
+
 func TestWriteIgnoreWrapsWriteErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")
@@ -340,6 +387,30 @@ func TestFetchIgnoresCombinesMultipleTemplates(t *testing.T) {
 	}
 }
 
+func TestFetchIgnoresSkipsDuplicateTemplates(t *testing.T) {
+	oldRetryDelay := retryDelay
+	retryDelay = 0
+	defer func() { retryDelay = oldRetryDelay }()
+
+	client := &fakeGitignoreClient{
+		listTemplates:   []string{"Go.gitignore"},
+		downloadContent: []byte("bin/\n"),
+	}
+
+	content, err := fetchIgnores([]string{"go", "Go"}, client)
+	if err != nil {
+		t.Fatalf("fetchIgnores() returned error: %v", err)
+	}
+
+	if client.downloadCalls != 1 {
+		t.Fatalf("download calls = %d; want 1", client.downloadCalls)
+	}
+
+	if got := strings.Count(string(content), "# >>> ignoreinit: Go"); got != 1 {
+		t.Fatalf("section count = %d; want 1", got)
+	}
+}
+
 func TestWithRetryStopsOnContextCancellation(t *testing.T) {
 	oldRetryDelay := retryDelay
 	retryDelay = time.Hour
@@ -407,12 +478,25 @@ func captureStdout(t *testing.T, action func()) string {
 	}
 
 	os.Stdout = writer
+	writerClosed := false
+	defer func() {
+		os.Stdout = oldStdout
+		if !writerClosed {
+			if err := writer.Close(); err != nil {
+				t.Logf("Close() returned error during cleanup: %v", err)
+			}
+		}
+		if err := reader.Close(); err != nil {
+			t.Logf("Close() returned error during cleanup: %v", err)
+		}
+	}()
+
 	action()
 
 	if err := writer.Close(); err != nil {
 		t.Fatalf("Close() returned error: %v", err)
 	}
-	os.Stdout = oldStdout
+	writerClosed = true
 
 	output, err := io.ReadAll(reader)
 	if err != nil {

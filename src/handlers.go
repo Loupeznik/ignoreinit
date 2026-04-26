@@ -45,7 +45,7 @@ type githubGitignoreClient struct {
 }
 
 func InitHandlers() {
-	gocmd.HandleFlag(fncList, func(cmd *gocmd.Cmd, args []string) error {
+	mustHandleFlag(fncList, func(cmd *gocmd.Cmd, args []string) error {
 		templates, err := listTemplateNames(githubGitignoreClient{client: github.NewClient(nil)})
 		if err != nil {
 			return err
@@ -55,7 +55,7 @@ func InitHandlers() {
 		return nil
 	})
 
-	gocmd.HandleFlag(fncSearch, func(cmd *gocmd.Cmd, args []string) error {
+	mustHandleFlag(fncSearch, func(cmd *gocmd.Cmd, args []string) error {
 		params := cmd.FlagArgs(fncSearch)[1:]
 		if len(params) == 0 {
 			return errors.New("no search term supplied")
@@ -73,7 +73,7 @@ func InitHandlers() {
 		return nil
 	})
 
-	gocmd.HandleFlag(fncCompletion, func(cmd *gocmd.Cmd, args []string) error {
+	mustHandleFlag(fncCompletion, func(cmd *gocmd.Cmd, args []string) error {
 		params := cmd.FlagArgs(fncCompletion)[1:]
 		if len(params) == 0 {
 			return errors.New("no shell supplied")
@@ -88,9 +88,9 @@ func InitHandlers() {
 		return nil
 	})
 
-	gocmd.HandleFlag(fncInit, func(cmd *gocmd.Cmd, args []string) error {
+	mustHandleFlag(fncInit, func(cmd *gocmd.Cmd, args []string) error {
 		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncInit)[1:])
-		shouldPrint := cmd.FlagValue(fncInit+".Print") == true
+		shouldPrint := flagValueBool(cmd, fncInit+".Print")
 
 		if err != nil {
 			return err
@@ -119,9 +119,9 @@ func InitHandlers() {
 		return nil
 	})
 
-	gocmd.HandleFlag(fncReplace, func(cmd *gocmd.Cmd, args []string) error {
+	mustHandleFlag(fncReplace, func(cmd *gocmd.Cmd, args []string) error {
 		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncReplace)[1:])
-		shouldPrint := cmd.FlagValue(fncReplace+".Print") == true
+		shouldPrint := flagValueBool(cmd, fncReplace+".Print")
 
 		if err != nil {
 			return err
@@ -150,9 +150,9 @@ func InitHandlers() {
 		return nil
 	})
 
-	gocmd.HandleFlag(fncMerge, func(cmd *gocmd.Cmd, args []string) error {
+	mustHandleFlag(fncMerge, func(cmd *gocmd.Cmd, args []string) error {
 		templates, location, err := handleGenerationParams(cmd.FlagArgs(fncMerge)[1:])
-		shouldPrint := cmd.FlagValue(fncMerge+".Print") == true
+		shouldPrint := flagValueBool(cmd, fncMerge+".Print")
 
 		if err != nil {
 			return err
@@ -178,6 +178,17 @@ func InitHandlers() {
 
 		return nil
 	})
+}
+
+func mustHandleFlag(name string, handler func(cmd *gocmd.Cmd, args []string) error) {
+	if _, err := gocmd.HandleFlag(name, handler); err != nil {
+		panic(fmt.Errorf("register %s handler: %w", name, err))
+	}
+}
+
+func flagValueBool(cmd *gocmd.Cmd, name string) bool {
+	value, ok := cmd.FlagValue(name).(bool)
+	return ok && value
 }
 
 func handleParams(params []string) (string, string, error) {
@@ -211,12 +222,7 @@ func looksLikeLocation(value string) bool {
 		return true
 	}
 
-	if strings.ContainsAny(value, `/\`) || filepath.VolumeName(value) != "" {
-		return true
-	}
-
-	info, err := os.Stat(value)
-	return err == nil && info.IsDir()
+	return strings.ContainsAny(value, `/\`) || filepath.VolumeName(value) != ""
 }
 
 func getIgnore(templates []string, location string, isNew bool, isMerge bool, shouldPrint bool) error {
@@ -253,26 +259,48 @@ func fetchIgnores(languages []string, client gitignoreClient) ([]byte, error) {
 		return nil, err
 	}
 
-	contents := make([][]byte, 0, len(languages))
-	for _, language := range languages {
-		templatePath := findTemplate(language, templates)
-		if templatePath == "" {
-			return nil, fmt.Errorf("could not find .gitignore template for %q; check the language name against github.com/github/gitignore", language)
-		}
+	templatePaths, err := resolveTemplatePaths(languages, templates)
+	if err != nil {
+		return nil, err
+	}
 
+	contents := make([][]byte, 0, len(templatePaths))
+	for _, templatePath := range templatePaths {
+		name := templateName(templatePath)
 		var content []byte
 		if err := withRetryTimeout(func(ctx context.Context) error {
 			var err error
 			content, err = client.DownloadTemplate(ctx, templatePath)
 			return err
 		}); err != nil {
-			return nil, fmt.Errorf("could not download .gitignore template for %q from %s/%s: %w", language, gitOwner, gitRepo, err)
+			return nil, fmt.Errorf("could not download .gitignore template for %q from %s/%s: %w", name, gitOwner, gitRepo, err)
 		}
 
-		contents = append(contents, renderTemplateSection(templateName(templatePath), content))
+		contents = append(contents, renderTemplateSection(name, content))
 	}
 
 	return joinContent(contents), nil
+}
+
+func resolveTemplatePaths(languages []string, templates []string) ([]string, error) {
+	seen := map[string]struct{}{}
+	templatePaths := make([]string, 0, len(languages))
+
+	for _, language := range languages {
+		templatePath := findTemplate(language, templates)
+		if templatePath == "" {
+			return nil, fmt.Errorf("could not find .gitignore template for %q; check the language name against github.com/github/gitignore", language)
+		}
+
+		if _, exists := seen[templatePath]; exists {
+			continue
+		}
+
+		seen[templatePath] = struct{}{}
+		templatePaths = append(templatePaths, templatePath)
+	}
+
+	return templatePaths, nil
 }
 
 func renderTemplateSection(name string, content []byte) []byte {
@@ -716,6 +744,11 @@ func dedupeIgnoreContent(content []byte) []byte {
 }
 
 func shouldDedupeLine(trimmed string) bool {
+	// Generated section markers are deduped so repeated merges do not stack empty marker pairs.
+	if strings.HasPrefix(trimmed, "# >>> ignoreinit:") || strings.HasPrefix(trimmed, "# <<< ignoreinit:") {
+		return true
+	}
+
 	return !strings.HasPrefix(trimmed, "#")
 }
 
