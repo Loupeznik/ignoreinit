@@ -70,6 +70,37 @@ func TestHandleGenerationParamsUsesExplicitLocation(t *testing.T) {
 	}
 }
 
+func TestHandleGenerationParamsIgnoresPrintFlagArgs(t *testing.T) {
+	templates, location, err := handleGenerationParams([]string{"go", "node", "--print=true"})
+	if err != nil {
+		t.Fatalf("handleGenerationParams() returned error: %v", err)
+	}
+
+	if got := strings.Join(templates, ", "); got != "go, node" {
+		t.Fatalf("templates = %q; want go, node", got)
+	}
+
+	if location != "." {
+		t.Fatalf("location = %q; want .", location)
+	}
+}
+
+func TestNormalizeGenerationPrintArgsKeepsPrintFromConsumingTemplates(t *testing.T) {
+	args := NormalizeGenerationPrintArgs([]string{"ignoreinit", "init", "--print", "go", "node"})
+
+	if got := strings.Join(args, " "); got != "ignoreinit init --print=true go node" {
+		t.Fatalf("NormalizeGenerationPrintArgs() = %q; want print flag normalized", got)
+	}
+}
+
+func TestNormalizeGenerationPrintArgsKeepsExplicitBoolValues(t *testing.T) {
+	args := NormalizeGenerationPrintArgs([]string{"ignoreinit", "init", "--print", "false", "go"})
+
+	if got := strings.Join(args, " "); got != "ignoreinit init --print false go" {
+		t.Fatalf("NormalizeGenerationPrintArgs() = %q; want explicit bool value unchanged", got)
+	}
+}
+
 func TestHandleGenerationParamsDoesNotStatImplicitLocation(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

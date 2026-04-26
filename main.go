@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/devfacet/gocmd/v3"
 	"github.com/loupeznik/ignoreinit/src"
 )
@@ -8,6 +10,8 @@ import (
 var version = "dev"
 
 func main() {
+	os.Args = src.NormalizeGenerationPrintArgs(os.Args)
+
 	flags := src.Flags{}
 
 	src.InitHandlers()

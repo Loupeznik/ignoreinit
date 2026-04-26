@@ -201,6 +201,7 @@ func handleParams(params []string) (string, string, error) {
 }
 
 func handleGenerationParams(params []string) ([]string, string, error) {
+	params = stripGenerationPrintArgs(params)
 	if len(params) == 0 {
 		return nil, "", errors.New("no arguments supplied")
 	}
@@ -215,6 +216,78 @@ func handleGenerationParams(params []string) ([]string, string, error) {
 	}
 
 	return params, ".", nil
+}
+
+func NormalizeGenerationPrintArgs(args []string) []string {
+	normalized := append([]string(nil), args...)
+	inGenerationCommand := false
+
+	for index, arg := range normalized {
+		if index == 0 {
+			continue
+		}
+
+		if isGenerationCommandArg(arg) {
+			inGenerationCommand = true
+			continue
+		}
+
+		if !inGenerationCommand || !isPrintFlagArg(arg) || hasInlineFlagValue(arg) || nextParamIsBoolValue(normalized, index) {
+			continue
+		}
+
+		normalized[index] = arg + "=true"
+	}
+
+	return normalized
+}
+
+func stripGenerationPrintArgs(params []string) []string {
+	filtered := make([]string, 0, len(params))
+	skipNext := false
+
+	for index, param := range params {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+
+		if !isPrintFlagArg(param) {
+			filtered = append(filtered, param)
+			continue
+		}
+
+		if !hasInlineFlagValue(param) && nextParamIsBoolValue(params, index) {
+			skipNext = true
+		}
+	}
+
+	return filtered
+}
+
+func isGenerationCommandArg(arg string) bool {
+	return strings.EqualFold(arg, fncInit) || strings.EqualFold(arg, fncReplace) || strings.EqualFold(arg, fncMerge)
+}
+
+func isPrintFlagArg(arg string) bool {
+	return arg == "--print" || strings.HasPrefix(arg, "--print=") || arg == "-p" || strings.HasPrefix(arg, "-p=")
+}
+
+func hasInlineFlagValue(arg string) bool {
+	return strings.Contains(arg, "=")
+}
+
+func nextParamIsBoolValue(params []string, index int) bool {
+	return index+1 < len(params) && isBoolValue(params[index+1])
+}
+
+func isBoolValue(value string) bool {
+	switch strings.ToLower(value) {
+	case "1", "t", "true", "0", "f", "false":
+		return true
+	default:
+		return false
+	}
 }
 
 func looksLikeLocation(value string) bool {
