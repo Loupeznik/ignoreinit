@@ -46,7 +46,7 @@ ignoreinit init go node terraform
 ignoreinit init go node terraform ./my-project
 ```
 
-Combined output is grouped with ignoreinit section markers. Merge mode removes duplicate ignore patterns while keeping the existing file content first.
+Combined output is grouped with ignoreinit section markers. Merge mode keeps existing content first and avoids stacking duplicate generated section markers.
 
 Use `--print` to write generated content to stdout instead of `.gitignore`:
 

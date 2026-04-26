@@ -744,12 +744,7 @@ func dedupeIgnoreContent(content []byte) []byte {
 }
 
 func shouldDedupeLine(trimmed string) bool {
-	// Generated section markers are deduped so repeated merges do not stack empty marker pairs.
-	if strings.HasPrefix(trimmed, "# >>> ignoreinit:") || strings.HasPrefix(trimmed, "# <<< ignoreinit:") {
-		return true
-	}
-
-	return !strings.HasPrefix(trimmed, "#")
+	return strings.HasPrefix(trimmed, "# >>> ignoreinit:") || strings.HasPrefix(trimmed, "# <<< ignoreinit:")
 }
 
 func (c githubGitignoreClient) ListTemplates(ctx context.Context) ([]string, error) {
