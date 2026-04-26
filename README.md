@@ -61,20 +61,16 @@ docker run --rm -v $HOME/projects:/work loupeznik/ignoreinit:latest init go .
 sudo snap install ignoreinit
 ```
 
-### Install via apt
-
-On Debian-based distros, *ignoreinit* can be installed via *apt* using a custom *apt* repo. This option is currently supported for *amd64* systems.
+### Install via Homebrew
 
 ```bash
-sudo -s
+brew install --cask loupeznik/tap/ignoreinit
+```
 
-apt install -y curl gpg
+### Install via AUR
 
-curl -fsSL https://apt.dzarsky.eu/apt-repo-dzarsky.gpg | gpg --dearmor > /etc/apt/trusted.gpg.d/apt-repo-dzarsky.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/apt-repo-dzarsky.gpg] https://apt.dzarsky.eu /" > /etc/apt/sources.list.d/apt-repo-dzarsky.list
-
-apt update
-apt install ignoreinit
+```bash
+yay -S ignoreinit-bin
 ```
 
 ### Install via go

@@ -1,0 +1,6 @@
+FROM gcr.io/distroless/static-debian12
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/ignoreinit /usr/local/bin/ignoreinit
+COPY LICENSE /
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/ignoreinit"]

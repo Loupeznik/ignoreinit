@@ -1,0 +1,149 @@
+version: 2
+
+project_name: ignoreinit
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ignoreinit
+    main: .
+    binary: ignoreinit
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - '386'
+    ignore:
+      - goos: darwin
+        goarch: '386'
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+
+archives:
+  - id: ignoreinit
+    ids:
+      - ignoreinit
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+dockers_v2:
+  - id: ignoreinit
+    ids:
+      - ignoreinit
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - docker.io/loupeznik/ignoreinit
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: https://github.com/loupeznik/ignoreinit
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: A tool for creating .gitignore files from the command line
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .Commit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: MIT
+    extra_files:
+      - LICENSE
+
+docker_signs:
+  - cmd: cosign
+    artifacts: all
+    args:
+      - sign
+      - --yes
+      - "${artifact}@${digest}"
+
+homebrew_casks:
+  - name: ignoreinit
+    ids:
+      - ignoreinit
+    binaries: [ignoreinit]
+    directory: Casks
+    repository:
+      owner: Loupeznik
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/Loupeznik/ignoreinit"
+    description: "A tool for creating .gitignore files from the command line"
+    license: "MIT"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ignoreinit"]
+          end
+    skip_upload: auto
+
+snapcrafts:
+  - id: ignoreinit
+    ids:
+      - ignoreinit
+    name: ignoreinit
+    title: ignoreinit
+    summary: A tool for creating .gitignore files from the command line
+    description: |
+      Ignoreinit is a tool for creating .gitignore files from the command line.
+      Gitignore files are pulled from the github/gitignore repository.
+    grade: '{{ if eq .Major 0 }}devel{{ else }}stable{{ end }}'
+    confinement: strict
+    license: MIT
+    publish: true
+    apps:
+      ignoreinit:
+        command: ignoreinit
+        plugs: [home, network]
+
+aurs:
+  - name: ignoreinit-bin
+    ids:
+      - ignoreinit
+    homepage: "https://github.com/Loupeznik/ignoreinit"
+    description: "A tool for creating .gitignore files from the command line"
+    maintainers:
+      - 'Dominik Zarsky <dzarsky@dzarsky.eu>'
+    license: "MIT"
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/ignoreinit-bin.git"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    package: |-
+      install -Dm755 "./ignoreinit" "${pkgdir}/usr/bin/ignoreinit"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
